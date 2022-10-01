@@ -86,7 +86,7 @@ class TextureProvider:
                 self.__logger.warning("Invalid value for config option 'mat_images'. Using default.")
         return(on, val)
 
-    def __tex_load(self, pics, size=None):
+    def tex_load(self, pics, size=None):
         try:
             # Load the image(s) and correct their orientation as necessary
             if pics[0]:
@@ -499,7 +499,8 @@ class ViewerDisplay:
         #DBNote: passing in a pair of pictures is equivalent to setting new picture state before
         # redrawing
         if pics is not None:
-            new_sfg = self.__tex_load(pics, (self.__display.width, self.__display.height))
+            # new_sfg = self.__tex_load(pics, (self.__display.width, self.__display.height))
+            new_sfg = self.__tex_provider.tex_load(pics, (self.__display.width, self.__display.height))
             tm = time.time()
             self.__next_tm = tm + time_delay
             self.__name_tm = tm + fade_time + self.__show_text_tm # text starts after slide transition
