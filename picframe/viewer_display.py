@@ -81,8 +81,11 @@ class ViewerDisplay:
         self.__display = None
         self.__slide = None
         self.__flat_shader = None
+        #DBNote: Ken Burns movement factors
         self.__xstep = None
         self.__ystep = None
+        self.__xstepb = None
+        self.__ystepb = None
         #self.__text = None
         self.__textblocks = None
         self.__text_bkg = None
@@ -444,9 +447,15 @@ class ViewerDisplay:
         shader = pi3d.Shader(self.__shader)
         self.__slide = pi3d.Sprite(camera=camera, w=self.__display.width, h=self.__display.height, z=5.0)
         self.__slide.set_shader(shader)
+
+        #DBNote: sets 2D total height
         self.__slide.unif[47] = self.__edge_alpha
+
+        #DBNote: set the shader burn/bump value (unif[18][0])
         self.__slide.unif[54] = float(self.__blend_type)
+        #DBNote: set the shader brightness (unif[18][1])
         self.__slide.unif[55] = 1.0 #brightness
+
         self.__textblocks = [None, None]
         self.__flat_shader = pi3d.Shader("uv_flat")
 
@@ -465,6 +474,11 @@ class ViewerDisplay:
 
         loop_running = self.__display.loop_running()
         tm = time.time()
+
+        ken_burns_time = time_delay - fade_time
+
+        #DBNote: passing in a pair of pictures is equivalent to setting new picture state before
+        # redrawing
         if pics is not None:
             new_sfg = self.__tex_load(pics, (self.__display.width, self.__display.height))
             tm = time.time()
@@ -475,6 +489,7 @@ class ViewerDisplay:
                 self.__sfg = new_sfg
             else:
                 (self.__sbg, self.__sfg) = (self.__sfg, self.__sbg) # swap existing images over
+                (self.__xstepb, self.__ystepb) = (self.__xstep, self.__ystep) # burns the back image
             self.__alpha = 0.0
             if fade_time > 0.5:
                 self.__delta_alpha = 1.0 / (self.__fps * fade_time) # delta alpha
@@ -491,28 +506,52 @@ class ViewerDisplay:
             if self.__sbg is None: # first time through
                 self.__sbg = self.__sfg
             self.__slide.set_textures([self.__sfg, self.__sbg])
+
+            #DBNote: this sets unif[15].xy = unif[14].xy
+            # then unif[17].xy = unif[16].xy
+            # in the blend_new.vs main
             self.__slide.unif[45:47] = self.__slide.unif[42:44] # transfer front width and height factors to back
             self.__slide.unif[51:53] = self.__slide.unif[48:50] # transfer front width and height offsets
+
+            # DBNote that it's width * iy / (height * ix) == width/height * iy/ix
+            # i.e. it's the display's aspect ratio divided by the image's aspect ratio
+            #  * wh_rat == 1 means they're the same aspect ratio.
+            #  * wh_rat > 1 means image is narrower than display
+            #  * wh_rat < 1 means image is wider than display
             wh_rat = (self.__display.width * self.__sfg.iy) / (self.__display.height * self.__sfg.ix)
             if (wh_rat > 1.0 and self.__fit) or (wh_rat <= 1.0 and not self.__fit):
+                # if we're fitting and image is too narrow -> make x > 1 (scale width up?)
+                # or we're not fitting and screen is too narrow -> make x < 1
                 sz1, sz2, os1, os2 = 42, 43, 48, 49
             else:
                 sz1, sz2, os1, os2 = 43, 42, 49, 48
                 wh_rat = 1.0 / wh_rat
+            # this sets unif[14].xy and unif[16].xy
+            # These are the values that go into texcoordoutf (front-texture position?)
             self.__slide.unif[sz1] = wh_rat
             self.__slide.unif[sz2] = 1.0
             self.__slide.unif[os1] = (wh_rat - 1.0) * 0.5
             self.__slide.unif[os2] = 0.0
+
+
             if self.__kenburns:
-                self.__xstep, self.__ystep = (self.__slide.unif[i] * 2.0 / (time_delay - fade_time) for i in (48, 49))
+                #DBNote: convert the front-texture position into a rate
+                self.__xstep, self.__ystep = (self.__slide.unif[i] * 2.0 / ken_burns_time for i in (48, 49))
+                #DBNote: then set front-texture position to zero unif[16].xy = 0 ?
                 self.__slide.unif[48] = 0.0
                 self.__slide.unif[49] = 0.0
 
-        if self.__kenburns and self.__alpha >= 1.0:
-            t_factor = time_delay - fade_time - self.__next_tm + tm
+        #DBNote: turns off KenBurns while transition happens, which causes jarring movement
+        # after transition ends
+        if self.__kenburns: #and self.__alpha >= 1.0:
+            t_factor = ken_burns_time - self.__next_tm + tm
             # add exponentially smoothed tweening in case of timing delays etc. to avoid 'jumps'
+            #DBNote: looks like the slide amount is equal to 0.05 * picture dimension?
+            # This changes unif[16].xy with time
             self.__slide.unif[48] = self.__slide.unif[48] * 0.95 + self.__xstep * t_factor * 0.05
             self.__slide.unif[49] = self.__slide.unif[49] * 0.95 + self.__ystep * t_factor * 0.05
+            self.__slide.unif[51] = self.__slide.unif[51] * 0.95 + self.__xstepb * t_factor * 0.05
+            self.__slide.unif[52] = self.__slide.unif[52] * 0.95 + self.__ystepb * t_factor * 0.05
 
         if self.__alpha < 1.0: # transition is happening
             self.__alpha += self.__delta_alpha
