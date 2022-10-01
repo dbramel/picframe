@@ -537,6 +537,8 @@ class ViewerDisplay:
             if self.__kenburns:
                 #DBNote: convert the front-texture position into a rate
                 self.__xstep, self.__ystep = (self.__slide.unif[i] * 2.0 / ken_burns_time for i in (48, 49))
+                if not self.__xstepb: # first init
+                    (self.__xstepb, self.__ystepb) = (self.__xstep, self.__ystep)
                 #DBNote: then set front-texture position to zero unif[16].xy = 0 ?
                 self.__slide.unif[48] = 0.0
                 self.__slide.unif[49] = 0.0
