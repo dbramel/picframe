@@ -542,6 +542,8 @@ class ViewerDisplay:
                 #DBNote: then set front-texture position to zero unif[16].xy = 0 ?
                 self.__slide.unif[48] = 0.0
                 self.__slide.unif[49] = 0.0
+                self.__logger.info(f"DBNote: xstep:{self.__ystep} xstep:{self.__ystep}")
+                self.__logger.info(f"DBNote: xstepb:{self.__ystepb} xstepb:{self.__ystepb}")
 
         #DBNote: turns off KenBurns while transition happens, which causes jarring movement
         # after transition ends
@@ -552,8 +554,8 @@ class ViewerDisplay:
             # This changes unif[16].xy with time
             self.__slide.unif[48] = self.__slide.unif[48] * 0.95 + self.__xstep * t_factor * 0.05
             self.__slide.unif[49] = self.__slide.unif[49] * 0.95 + self.__ystep * t_factor * 0.05
-            self.__slide.unif[51] = self.__slide.unif[51] * 0.95 + self.__xstepb * t_factor * 0.05
-            self.__slide.unif[52] = self.__slide.unif[52] * 0.95 + self.__ystepb * t_factor * 0.05
+            # self.__slide.unif[51] = self.__slide.unif[51] * 0.95 + self.__xstepb * t_factor * 0.05
+            # self.__slide.unif[52] = self.__slide.unif[52] * 0.95 + self.__ystepb * t_factor * 0.05
 
         if self.__alpha < 1.0: # transition is happening
             self.__alpha += self.__delta_alpha
