@@ -7,6 +7,7 @@ import locale
 from distutils.dir_util import copy_tree
 
 from picframe import model, viewer_display, controller, interface_http, __version__
+from picframe.texture_provider import TextureProvider
 
 PICFRAME_DATA_DIR = 'picframe_data'
 
@@ -132,7 +133,8 @@ def main():
         m = model.Model()
 
     v = viewer_display.ViewerDisplay(m.get_viewer_config())
-    c = controller.Controller(m, v)
+    file_provider = TextureProvider(m.get_viewer_config())
+    c = controller.Controller(m, v, file_provider)
     c.start()
 
     mqtt_config = m.get_mqtt_config()

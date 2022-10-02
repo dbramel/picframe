@@ -1,16 +1,20 @@
 import logging
 import os
+import time
 
 import pi3d
 from PIL import ImageFilter, Image
 
 from picframe import get_image_meta, mat_image
 
+import threading
+
 
 class TextureProvider:
 
-    def __init__(self, config):
+    def __init__(self, config, model):
         self.__logger = logging.getLogger("viewer_display.TextureProvider")
+        self.__model = model
 
         self.__blur_amount = config['blur_amount']
         self.__blur_zoom = max(1.0, config['blur_zoom'])
@@ -27,6 +31,19 @@ class TextureProvider:
         self.__outer_mat_use_texture = config['outer_mat_use_texture']
         self.__inner_mat_use_texture = config['inner_mat_use_texture']
         self.__mat_resource_folder = os.path.expanduser(config['mat_resource_folder'])
+        self.__display_width = None
+        self.__display_height = None
+        self.__matter = None
+
+        self.__thread = threading.Thread(target=self.__iterate_files)
+        self.__thread.daemon = True
+        self.__consumed = threading.Event()
+
+        self.__next_pic = None
+        self.__next_attrs = None
+        self.__next_tex = None
+
+        self.__thread.start()
 
 
     def set_matting_images(self, val): # needs to cope with "true", "ON", 0, "0.2" etc.
@@ -49,26 +66,11 @@ class TextureProvider:
             return 1
 
 
-    def __get_mat_image_control_values(self, mat_images_value):
-        on = True
-        val = 0.01
-        org_val = str(mat_images_value).lower()
-        if org_val in ('true', 'yes', 'on'):
-            val = -1
-        elif org_val in ('false', 'no', 'off'):
-            on = False
-        else:
-            try:
-                val = float(org_val)
-            except:
-                self.__logger.warning("Invalid value for config option 'mat_images'. Using default.")
-        return(on, val)
-
-    def set_display(self, display):
-        self.__display_width = display.width
-        self.__display_height = display.height
+    def set_display(self, display_width, display_height):
+        self.__display_width = display_width
+        self.__display_height = display_height
         self.__matter = mat_image.MatImage(
-            display_size=(display.width, display.height),
+            display_size=(display_width, display_height),
             resource_folder=self.__mat_resource_folder,
             mat_type=self.__mat_type,
             outer_mat_color=self.__outer_mat_color,
@@ -78,7 +80,44 @@ class TextureProvider:
             outer_mat_use_texture=self.__outer_mat_use_texture,
             inner_mat_use_texture=self.__inner_mat_use_texture)
 
-    def tex_load(self, pics):
+    def consume(self):
+        (attrs, pic, tex) = (self.__next_attrs, self.__next_pic, self.__next_tex)
+        # Ensure we can't re-consume the same picture
+        (self.__next_attrs, self.__next_pic, self.__next_tex) = (None, None, None)
+        self.__consumed.set()  # allow thread to start on the next one
+        return attrs, pic, tex
+
+    def __iterate_files(self):
+        while True:
+            attrs, pics = self.__get_next_file()
+            if pics:
+                tex = self.__tex_load(pics)
+                (self.__next_attrs, self.__next_pic, self.__next_tex) = (attrs, pics, tex)
+                # don't do anything until it's been consumed
+                self.__consumed.clear()
+                self.__consumed.wait()
+            else:
+                # If we didn't get a picture, wait a bit and try again
+                time.sleep(0.5)
+
+    def __get_next_file(self):
+        pics = self.__model.get_next_file()
+        image_attr = {}
+        if pics[0] is None:
+            pics = None
+        else:
+            for key in self.__model.get_model_config()['image_attr']:
+                if key == 'PICFRAME GPS':
+                    image_attr['latitude'] = pics[0].latitude
+                    image_attr['longitude'] = pics[0].longitude
+                elif key == 'PICFRAME LOCATION':
+                    image_attr['location'] = pics[0].location
+                else:
+                    field_name = self.__model.EXIF_TO_FIELD[key]
+                    image_attr[key] = pics[0].__dict__[field_name]  # TODO nicer using namedtuple for Pic
+        return image_attr, pics
+
+    def __tex_load(self, pics):
         size = (self.__display_width, self.__display_height)
         try:
             # Load the image(s) and correct their orientation as necessary
@@ -152,6 +191,21 @@ class TextureProvider:
             tex = None
             #raise # only re-raise errors here while debugging
         return tex
+
+    def __get_mat_image_control_values(self, mat_images_value):
+        on = True
+        val = 0.01
+        org_val = str(mat_images_value).lower()
+        if org_val in ('true', 'yes', 'on'):
+            val = -1
+        elif org_val in ('false', 'no', 'off'):
+            on = False
+        else:
+            try:
+                val = float(org_val)
+            except:
+                self.__logger.warning("Invalid value for config option 'mat_images'. Using default.")
+        return(on, val)
 
 
     def __get_aspect_diff(self, screen_size, image_size):

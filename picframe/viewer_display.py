@@ -37,8 +37,6 @@ class ViewerDisplay:
         self.__logger = logging.getLogger("viewer_display.ViewerDisplay")
         self.__edge_alpha = config['edge_alpha']
 
-        self.__tex_provider = TextureProvider(config)
-
         self.__fps = config['fps']
         self.__background = config['background']
         self.__blend_type = {"blend": 0.0, "burn": 1.0, "bump": 2.0}[config['blend_type']]
@@ -163,12 +161,6 @@ class ViewerDisplay:
         return round(self.__slide.unif[55],
                      2)  # this will still give 32/64 bit differences sometimes, as will the float(format()) system
 
-    def set_matting_images(self, val):  # needs to cope with "true", "ON", 0, "0.2" etc.
-        self.__tex_provider.set_matting_images(val)
-
-    def get_matting_images(self):
-        return self.__tex_provider.get_matting_images()
-
     @property
     def clock_is_on(self):
         return self.__show_clock
@@ -273,8 +265,6 @@ class ViewerDisplay:
                                              display_config=pi3d.DISPLAY_CONFIG_HIDE_CURSOR,
                                              background=self.__background, use_glx=self.__use_glx)
 
-        self.__tex_provider.set_display(self.__display)
-
         camera = pi3d.Camera(is_3d=False)
         shader = pi3d.Shader(self.__shader)
         self.__slide = pi3d.Sprite(camera=camera, w=self.__display.width, h=self.__display.height, z=5.0)
@@ -300,7 +290,9 @@ class ViewerDisplay:
                                           y=-int(self.__display.height) // 2 + bkg_hgt // 2, z=4.0)
             self.__text_bkg.set_draw_details(self.__flat_shader, [text_bkg_tex])
 
-    def slideshow_is_running(self, pics=None, time_delay=200.0, fade_time=10.0, paused=False):
+
+
+    def slideshow_is_running(self, time_delay=200.0, fade_time=10.0, paused=False):
         if self.clock_is_on:
             self.__draw_clock()
 
@@ -308,67 +300,6 @@ class ViewerDisplay:
         tm = time.time()
 
         ken_burns_time = time_delay - fade_time
-
-        # DBNote: passing in a pair of pictures is equivalent to setting new picture state before
-        # redrawing
-        if pics is not None:
-            # new_sfg = self.__tex_load(pics, (self.__display.width, self.__display.height))
-            new_sfg = self.__tex_provider.tex_load(pics)
-            tm = time.time()
-            self.__next_tm = tm + time_delay
-            self.__name_tm = tm + fade_time + self.__show_text_tm  # text starts after slide transition
-            self.move_fg_to_bg(new_sfg)
-            self.__alpha = 0.0
-            if fade_time > 0.5:
-                self.__delta_alpha = 1.0 / (self.__fps * fade_time)  # delta alpha
-            else:
-                self.__delta_alpha = 1.0  # else jump alpha from 0 to 1 in one frame
-            # set the file name as the description
-            if self.__show_text_tm > 0.0:
-                for i, pic in enumerate(pics):
-                    self.__make_text(pic, paused, i,
-                                     pics[1] is not None)  # send even if pic is None to clear previous text
-            else:  # could have a NO IMAGES selected and being drawn
-                for block in range(2):
-                    self.__textblocks[block] = None
-
-            if self.__sbg is None:  # first time through
-                self.__sbg = self.__sfg
-            self.__slide.set_textures([self.__sfg, self.__sbg])
-
-            # DBNote: this sets unif[15].xy = unif[14].xy
-            # then unif[17].xy = unif[16].xy
-            # in the blend_new.vs main
-            self.__slide.unif[45:47] = self.__slide.unif[42:44]  # transfer front width and height factors to back
-            self.__slide.unif[51:53] = self.__slide.unif[48:50]  # transfer front width and height offsets
-
-            # DBNote that it's width * iy / (height * ix) == width/height * iy/ix
-            # i.e. it's the display's aspect ratio divided by the image's aspect ratio
-            #  * wh_rat == 1 means they're the same aspect ratio.
-            #  * wh_rat > 1 means image is narrower than display
-            #  * wh_rat < 1 means image is wider than display
-            wh_rat = (self.__display.width * self.__sfg.iy) / (self.__display.height * self.__sfg.ix)
-            if (wh_rat > 1.0 and self.__fit) or (wh_rat <= 1.0 and not self.__fit):
-                # if we're fitting and image is too narrow -> make x > 1 (scale width up?)
-                # or we're not fitting and screen is too narrow -> make x < 1
-                sz1, sz2, os1, os2 = 42, 43, 48, 49
-            else:
-                sz1, sz2, os1, os2 = 43, 42, 49, 48
-                wh_rat = 1.0 / wh_rat
-            # this sets unif[14].xy and unif[16].xy
-            # These are the values that go into texcoordoutf (front-texture position?)
-            self.__slide.unif[sz1] = wh_rat
-            self.__slide.unif[sz2] = 1.0
-            self.__slide.unif[os1] = (wh_rat - 1.0) * 0.5
-            self.__slide.unif[os2] = 0.0
-
-            if self.__kenburns:
-                # DBNote: convert the front-texture position into a rate
-                self.__xstep, self.__ystep = (self.__slide.unif[i] * 2.0 / ken_burns_time for i in (48, 49))
-                # DBNote: then set front-texture position to zero unif[16].xy = 0 ?
-                self.__slide.unif[48] = 0.0
-                self.__slide.unif[49] = 0.0
-                self.__logger.info(f"DBNote: xstep:{self.__ystep} xstep:{self.__ystep}")
 
         # DBNote: turns off KenBurns while transition happens, which causes jarring movement
         # after transition ends
@@ -420,6 +351,60 @@ class ViewerDisplay:
                 block.sprite.draw()
 
         return (loop_running, False)  # now returns tuple with skip image flag added
+
+    def switch_image(self, pics, new_sfg, time_delay, fade_time, paused):
+        tm = time.time()
+        self.__next_tm = tm + time_delay
+        self.__name_tm = tm + fade_time + self.__show_text_tm  # text starts after slide transition
+        self.move_fg_to_bg(new_sfg)
+        self.__alpha = 0.0
+        if fade_time > 0.5:
+            self.__delta_alpha = 1.0 / (self.__fps * fade_time)  # delta alpha
+        else:
+            self.__delta_alpha = 1.0  # else jump alpha from 0 to 1 in one frame
+        # set the file name as the description
+        if self.__show_text_tm > 0.0:
+            for i, pic in enumerate(pics):
+                self.__make_text(pic, paused, i,
+                                 pics[1] is not None)  # send even if pic is None to clear previous text
+        else:  # could have a NO IMAGES selected and being drawn
+            for block in range(2):
+                self.__textblocks[block] = None
+        if self.__sbg is None:  # first time through
+            self.__sbg = self.__sfg
+        self.__slide.set_textures([self.__sfg, self.__sbg])
+        # DBNote: this sets unif[15].xy = unif[14].xy
+        # then unif[17].xy = unif[16].xy
+        # in the blend_new.vs main
+        self.__slide.unif[45:47] = self.__slide.unif[42:44]  # transfer front width and height factors to back
+        self.__slide.unif[51:53] = self.__slide.unif[48:50]  # transfer front width and height offsets
+        # DBNote that it's width * iy / (height * ix) == width/height * iy/ix
+        # i.e. it's the display's aspect ratio divided by the image's aspect ratio
+        #  * wh_rat == 1 means they're the same aspect ratio.
+        #  * wh_rat > 1 means image is narrower than display
+        #  * wh_rat < 1 means image is wider than display
+        wh_rat = (self.__display.width * self.__sfg.iy) / (self.__display.height * self.__sfg.ix)
+        if (wh_rat > 1.0 and self.__fit) or (wh_rat <= 1.0 and not self.__fit):
+            # if we're fitting and image is too narrow -> make x > 1 (scale width up?)
+            # or we're not fitting and screen is too narrow -> make x < 1
+            sz1, sz2, os1, os2 = 42, 43, 48, 49
+        else:
+            sz1, sz2, os1, os2 = 43, 42, 49, 48
+            wh_rat = 1.0 / wh_rat
+        # this sets unif[14].xy and unif[16].xy
+        # These are the values that go into texcoordoutf (front-texture position?)
+        self.__slide.unif[sz1] = wh_rat
+        self.__slide.unif[sz2] = 1.0
+        self.__slide.unif[os1] = (wh_rat - 1.0) * 0.5
+        self.__slide.unif[os2] = 0.0
+        if self.__kenburns:
+            ken_burns_time = time_delay - fade_time
+            # DBNote: convert the front-texture position into a rate
+            self.__xstep, self.__ystep = (self.__slide.unif[i] * 2.0 / ken_burns_time for i in (48, 49))
+            # DBNote: then set front-texture position to zero unif[16].xy = 0 ?
+            self.__slide.unif[48] = 0.0
+            self.__slide.unif[49] = 0.0
+            self.__logger.info(f"DBNote: xstep:{self.__ystep} xstep:{self.__ystep}")
 
     def move_fg_to_bg(self, new_sfg):
         if new_sfg is not None:  # this is a possible return value which needs to be caught
