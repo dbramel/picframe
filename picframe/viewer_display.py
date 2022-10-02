@@ -9,6 +9,7 @@ from PIL import ImageFile
 from datetime import datetime
 
 from picframe.texture_provider import TextureProvider
+from picframe.time_profiler import TimeProfiler
 
 # supported display modes for display switch
 dpms_mode = ("unsupported", "pi", "x_dpms")
@@ -35,6 +36,7 @@ class ViewerDisplay:
 
     def __init__(self, config):
         self.__logger = logging.getLogger("viewer_display.ViewerDisplay")
+        self.__timer = TimeProfiler()
         self.__edge_alpha = config['edge_alpha']
 
         self.__fps = config['fps']
@@ -293,12 +295,14 @@ class ViewerDisplay:
 
 
     def slideshow_is_running(self, time_delay=200.0, fade_time=10.0, paused=False):
+        self.__timer.start()
         if self.clock_is_on:
             self.__draw_clock()
 
         loop_running = self.__display.loop_running()
         tm = time.time()
 
+        self.__timer.checkpoint("to KenBurns")
         ken_burns_time = time_delay - fade_time
 
         # DBNote: turns off KenBurns while transition happens, which causes jarring movement
@@ -310,6 +314,7 @@ class ViewerDisplay:
             # This changes unif[16].xy with time
             self.__slide.unif[48] = self.__slide.unif[48] * 0.95 + self.__xstep * t_factor * 0.05
             self.__slide.unif[49] = self.__slide.unif[49] * 0.95 + self.__ystep * t_factor * 0.05
+            self.__logger.info("KB Step %f", t_factor)
 
         if self.__alpha < 1.0:  # transition is happening
             self.__alpha += self.__delta_alpha
@@ -322,7 +327,9 @@ class ViewerDisplay:
         else:  # no transition effect safe to update database, resuffle etc
             self.__in_transition = False
 
+        self.__timer.checkpoint("start draw")
         self.__slide.draw()
+        self.__timer.checkpoint("draw")
 
         if self.__alpha >= 1.0 and tm < self.__name_tm:
             # this sets alpha for the TextBlock from 0 to 1 then back to 0
@@ -350,14 +357,21 @@ class ViewerDisplay:
             if block is not None:
                 block.sprite.draw()
 
+        self.__timer.checkpoint("finish")
+        self.__logger.info("Slideshow loop %s", self.__timer)
+        self.__timer.reset()
         return (loop_running, False)  # now returns tuple with skip image flag added
 
     def switch_image(self, pics, new_sfg, time_delay, fade_time, paused):
+        self.__timer.start()
         self.__logger.info("Switching to new image")
         tm = time.time()
         self.__next_tm = tm + time_delay
         self.__name_tm = tm + fade_time + self.__show_text_tm  # text starts after slide transition
         self.move_fg_to_bg(new_sfg)
+
+        self.__timer.checkpoint("fg to bg")
+
         self.__alpha = 0.0
         if fade_time > 0.5:
             self.__delta_alpha = 1.0 / (self.__fps * fade_time)  # delta alpha
@@ -371,6 +385,9 @@ class ViewerDisplay:
         else:  # could have a NO IMAGES selected and being drawn
             for block in range(2):
                 self.__textblocks[block] = None
+
+        self.__timer.checkpoint("make text")
+
         if self.__sbg is None:  # first time through
             self.__sbg = self.__sfg
         self.__slide.set_textures([self.__sfg, self.__sbg])
@@ -398,6 +415,9 @@ class ViewerDisplay:
         self.__slide.unif[sz2] = 1.0
         self.__slide.unif[os1] = (wh_rat - 1.0) * 0.5
         self.__slide.unif[os2] = 0.0
+
+        self.__timer.checkpoint("to KenBurns")
+
         if self.__kenburns:
             ken_burns_time = time_delay - fade_time
             # DBNote: convert the front-texture position into a rate
@@ -405,6 +425,10 @@ class ViewerDisplay:
             # DBNote: then set front-texture position to zero unif[16].xy = 0 ?
             self.__slide.unif[48] = 0.0
             self.__slide.unif[49] = 0.0
+
+        self.__timer.checkpoint("KenBurns")
+        self.__logger.info("Switch image %s", self.__timer)
+        self.__timer.reset()
 
     def move_fg_to_bg(self, new_sfg):
         if new_sfg is not None:  # this is a possible return value which needs to be caught
