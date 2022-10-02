@@ -91,19 +91,25 @@ class TextureProvider:
         while True:
             attrs, pics = self.__get_next_file()
             if pics:
+                self.__logger.info(f"File found, loading texture")
                 tex = self.__tex_load(pics)
                 (self.__next_attrs, self.__next_pic, self.__next_tex) = (attrs, pics, tex)
                 # don't do anything until it's been consumed
                 self.__consumed.clear()
+                self.__logger.info(f"Texture ready, waiting to be consumed")
                 self.__consumed.wait()
+                self.__logger.info(f"Texture consumed")
             else:
                 # If we didn't get a picture, wait a bit and try again
+                self.__logger.info(f"Waiting to recheck pics")
                 time.sleep(0.5)
 
     def __get_next_file(self):
+        self.__logger.info(f"Getting next file")
         pics = self.__model.get_next_file()
         image_attr = {}
         if pics[0] is None:
+            self.__logger.info(f"No file found yet")
             pics = None
         else:
             for key in self.__model.get_model_config()['image_attr']:

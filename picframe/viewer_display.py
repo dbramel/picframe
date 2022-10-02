@@ -404,7 +404,6 @@ class ViewerDisplay:
             # DBNote: then set front-texture position to zero unif[16].xy = 0 ?
             self.__slide.unif[48] = 0.0
             self.__slide.unif[49] = 0.0
-            self.__logger.info(f"DBNote: xstep:{self.__ystep} xstep:{self.__ystep}")
 
     def move_fg_to_bg(self, new_sfg):
         if new_sfg is not None:  # this is a possible return value which needs to be caught
