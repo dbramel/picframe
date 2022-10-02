@@ -133,7 +133,7 @@ def main():
         m = model.Model()
 
     v = viewer_display.ViewerDisplay(m.get_viewer_config())
-    file_provider = TextureProvider(m.get_viewer_config(), model)
+    file_provider = TextureProvider(m.get_viewer_config(), m)
     c = controller.Controller(m, v, file_provider)
     c.start()
 
