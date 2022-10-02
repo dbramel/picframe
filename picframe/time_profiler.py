@@ -14,5 +14,6 @@ class TimeProfiler:
         self.__checkpoints.append((name, now - prev, now))
 
     def __str__(self):
-        summary = "\n\t".join([f"{name}: {dt}" for name, dt, abs_t in self.__checkpoints])
-        return f"checkpoints:\n{summary}"
+        summary = "\n\t".join([f"{name}: {1000*dt}" for name, dt, abs_t in self.__checkpoints])
+        total_dt = self.__checkpoints[-1][2] - self.__checkpoints[0][2]
+        return f"checkpoints (ms):\n{summary}\n\tTotal: {1000*total_dt}"

@@ -39,6 +39,9 @@ class ViewerDisplay:
         self.__timer = TimeProfiler()
         self.__edge_alpha = config['edge_alpha']
 
+        #DBNote: test hack
+        self.__log_loop_perf = False
+
         self.__fps = config['fps']
         self.__background = config['background']
         self.__blend_type = {"blend": 0.0, "burn": 1.0, "bump": 2.0}[config['blend_type']]
@@ -358,7 +361,9 @@ class ViewerDisplay:
                 block.sprite.draw()
 
         self.__timer.checkpoint("finish")
-        self.__logger.info("Slideshow loop %s", self.__timer)
+        if self.__log_loop_perf: # every loop is kind of a mess
+            self.__logger.info("Slideshow loop %s", self.__timer)
+            self.__log_loop_perf = False
         return (loop_running, False)  # now returns tuple with skip image flag added
 
     def switch_image(self, pics, new_sfg, time_delay, fade_time, paused):
@@ -390,6 +395,15 @@ class ViewerDisplay:
         if self.__sbg is None:  # first time through
             self.__sbg = self.__sfg
         self.__slide.set_textures([self.__sfg, self.__sbg])
+
+        self.__timer.checkpoint("set textures")
+
+        #DBNote: is this what takes time?
+        self.__sfg.load_file()
+        self.__sbg.load_file()
+
+        self.__timer.checkpoint("tex.load_file")
+
         # DBNote: this sets unif[15].xy = unif[14].xy
         # then unif[17].xy = unif[16].xy
         # in the blend_new.vs main
@@ -427,6 +441,7 @@ class ViewerDisplay:
 
         self.__timer.checkpoint("KenBurns")
         self.__logger.info("Switch image %s", self.__timer)
+        self.__log_loop_perf = True
 
     def move_fg_to_bg(self, new_sfg):
         if new_sfg is not None:  # this is a possible return value which needs to be caught
