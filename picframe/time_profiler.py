@@ -6,15 +6,13 @@ class TimeProfiler:
         self.__checkpoints = []
 
     def start(self):
-        self.__checkpoints = [tuple("Start", time.time())]
+        self.__checkpoints = [("Start", 0, time.time())]
 
     def checkpoint(self, name:str) -> None:
         now = time.time()
-        prev = self.__checkpoints[-1][1]
-        self.__checkpoints.append(tuple(name, now - prev))
+        prev = self.__checkpoints[-1][2]
+        self.__checkpoints.append((name, now - prev, now))
 
     def __str__(self):
-        t = self.__start_time
-        summary = "\n\t".join([f"{name}: {dt}" for name, dt in self.__checkpoints])
-
-        return f"checkpoints:\n"
+        summary = "\n\t".join([f"{name}: {dt}" for name, dt, abs_t in self.__checkpoints])
+        return f"checkpoints:\n{summary}"
