@@ -99,6 +99,7 @@ class TextureProvider:
                 self.__logger.info(f"File found, loading texture")
                 tex = self.__tex_load(pics)
                 if tex:
+                    tex.tex() # load assets in this thread
                     (self.__next_attrs, self.__next_pic, self.__next_tex) = (attrs, pics, tex)
                     # don't do anything until it's been consumed
                     self.__consumed.clear()
