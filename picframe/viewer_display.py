@@ -399,10 +399,10 @@ class ViewerDisplay:
         self.__timer.checkpoint("set textures")
 
         #DBNote: is this what takes time?
-        self.__sfg.load_file()
-        self.__sbg.load_file()
+        self.__sfg.tex()
+        self.__sbg.tex()
 
-        self.__timer.checkpoint("tex.load_file")
+        self.__timer.checkpoint("tex.tex")
 
         # DBNote: this sets unif[15].xy = unif[14].xy
         # then unif[17].xy = unif[16].xy
