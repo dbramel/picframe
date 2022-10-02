@@ -298,9 +298,11 @@ class Controller:
 
             tm = time.time()
             if not self.paused and tm > self.__next_tm or self.__force_navigate:
+                self.__logger.info("It's time to look for a new picture")
                 (image_attr, pics, new_sfg) = self.__tex_provider.consume()
                 if pics:
                     # DBNote: clear the things that caused you to enter
+                    self.__logger.info("We found a picture!")
                     self.__next_tm = tm + self.__model.time_delay
                     self.__force_navigate = False
                     self.__viewer.switch_image(pics, new_sfg, time_delay, fade_time, self.__paused)

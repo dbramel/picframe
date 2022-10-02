@@ -353,6 +353,7 @@ class ViewerDisplay:
         return (loop_running, False)  # now returns tuple with skip image flag added
 
     def switch_image(self, pics, new_sfg, time_delay, fade_time, paused):
+        self.__logger.info("Switching to new image")
         tm = time.time()
         self.__next_tm = tm + time_delay
         self.__name_tm = tm + fade_time + self.__show_text_tm  # text starts after slide transition
