@@ -359,7 +359,6 @@ class ViewerDisplay:
 
         self.__timer.checkpoint("finish")
         self.__logger.info("Slideshow loop %s", self.__timer)
-        self.__timer.reset()
         return (loop_running, False)  # now returns tuple with skip image flag added
 
     def switch_image(self, pics, new_sfg, time_delay, fade_time, paused):
@@ -428,7 +427,6 @@ class ViewerDisplay:
 
         self.__timer.checkpoint("KenBurns")
         self.__logger.info("Switch image %s", self.__timer)
-        self.__timer.reset()
 
     def move_fg_to_bg(self, new_sfg):
         if new_sfg is not None:  # this is a possible return value which needs to be caught
