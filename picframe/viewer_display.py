@@ -398,7 +398,8 @@ class ViewerDisplay:
 
         self.__timer.checkpoint("set textures")
 
-        #DBNote: is this what takes time?
+        #DBNote: This is what takes time. 500-700 ms usually.
+        # Can't do it in a separate thread due to Pi3D limitations
         self.__sfg.tex()
         self.__sbg.tex()
 

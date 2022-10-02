@@ -44,6 +44,11 @@ class TextureProvider:
         self.__next_attrs = None
         self.__next_tex = None
 
+        #DBNote: not sure if this is safe
+        from pi3d.util.Loadable import CHECK_IF_DISPLAY_THREAD
+        pi3d.util.Loadable.CHECK_IF_DISPLAY_THREAD = False
+
+
         self.__thread.start()
 
 
