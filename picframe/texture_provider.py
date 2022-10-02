@@ -38,6 +38,7 @@ class TextureProvider:
         self.__thread = threading.Thread(target=self.__iterate_files)
         self.__thread.daemon = True
         self.__consumed = threading.Event()
+        self.__initialized = threading.Event()
 
         self.__next_pic = None
         self.__next_attrs = None
@@ -80,6 +81,9 @@ class TextureProvider:
             outer_mat_use_texture=self.__outer_mat_use_texture,
             inner_mat_use_texture=self.__inner_mat_use_texture)
 
+    def wait_for_init(self):
+        self.__initialized.wait()
+
     def consume(self):
         (attrs, pic, tex) = (self.__next_attrs, self.__next_pic, self.__next_tex)
         # Ensure we can't re-consume the same picture
@@ -96,6 +100,7 @@ class TextureProvider:
                 (self.__next_attrs, self.__next_pic, self.__next_tex) = (attrs, pics, tex)
                 # don't do anything until it's been consumed
                 self.__consumed.clear()
+                self.__initialized.set()
                 self.__logger.info(f"Texture ready, waiting to be consumed")
                 self.__consumed.wait()
                 self.__logger.info(f"Texture consumed")

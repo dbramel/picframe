@@ -159,6 +159,12 @@ def main():
                 keyfile = http_config['keyfile'],
                 certfile = http_config['certfile'],
                 server_side=True)
+
+    # Wait for it to find a file or load no-image
+    print("\nWaiting for file-provider init")
+    file_provider.wait_for_init()
+    print("\nFile-provider init completed")
+
     c.loop()
     if mqtt_config['use_mqtt']:
         mqtt.stop()
