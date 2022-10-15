@@ -44,11 +44,6 @@ class TextureProvider:
         self.__next_attrs = None
         self.__next_tex = None
 
-        #DBNote: not sure if this is safe
-        from pi3d.util.Loadable import CHECK_IF_DISPLAY_THREAD
-        pi3d.util.Loadable.CHECK_IF_DISPLAY_THREAD = False
-
-
         self.__thread.start()
 
 
@@ -104,7 +99,6 @@ class TextureProvider:
                 self.__logger.info(f"File found, loading texture")
                 tex = self.__tex_load(pics)
                 if tex:
-                    tex.tex() # load assets in this thread
                     (self.__next_attrs, self.__next_pic, self.__next_tex) = (attrs, pics, tex)
                     # don't do anything until it's been consumed
                     self.__consumed.clear()

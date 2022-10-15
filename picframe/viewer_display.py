@@ -1,3 +1,5 @@
+from typing import List
+
 import pi3d
 # from pi3d.Texture import MAX_SIZE
 import time
@@ -8,6 +10,7 @@ import numpy as np
 from PIL import ImageFile
 from datetime import datetime
 
+from picframe.slide_mutator import SlideMutator, RandomizerMixin, LinearTextureShifter
 from picframe.texture_provider import TextureProvider
 from picframe.time_profiler import TimeProfiler
 
@@ -57,11 +60,16 @@ class ViewerDisplay:
         self.__fit = config['fit']
         self.__geo_suppress_list = config['geo_suppress_list']
         # self.__auto_resize = config['auto_resize']
+        self.__mutators:List[SlideMutator] = []
+        self.__randomizers:List[RandomizerMixin] = []
         self.__kenburns = config['kenburns']
         if self.__kenburns:
             self.__kb_up = True
             self.__fit = False
             self.__blur_edges = False
+            mutator = LinearTextureShifter(0.05)
+            self.__mutators.append(mutator)
+            self.__randomizers.append(mutator)
         self.__display_x = int(config['display_x'])
         self.__display_y = int(config['display_y'])
         self.__display_w = None if config['display_w'] is None else int(config['display_w'])
@@ -305,19 +313,25 @@ class ViewerDisplay:
         loop_running = self.__display.loop_running()
         tm = time.time()
 
+        # goes from 0 right after switch to 1 when we reach __next_tm
+        time_phase = 1 - (self.__next_tm - tm) / time_delay
+
         self.__timer.checkpoint("to KenBurns")
-        ken_burns_time = time_delay - fade_time
+        # ken_burns_time = time_delay - fade_time
 
         # DBNote: turns off KenBurns while transition happens, which causes jarring movement
         # after transition ends
-        if self.__kenburns:  # and self.__alpha >= 1.0:
-            t_factor = ken_burns_time - self.__next_tm + tm
-            # add exponentially smoothed tweening in case of timing delays etc. to avoid 'jumps'
-            # DBNote: looks like the slide amount is equal to 0.05 * picture dimension?
-            # This changes unif[16].xy with time
-            self.__slide.unif[48] = self.__slide.unif[48] * 0.95 + self.__xstep * t_factor * 0.05
-            self.__slide.unif[49] = self.__slide.unif[49] * 0.95 + self.__ystep * t_factor * 0.05
-            self.__logger.info("KB Step %f", t_factor)
+        # if self.__kenburns:  # and self.__alpha >= 1.0:
+        #     t_factor = ken_burns_time - self.__next_tm + tm
+        #     # add exponentially smoothed tweening in case of timing delays etc. to avoid 'jumps'
+        #     # DBNote: looks like the slide amount is equal to 0.05 * picture dimension?
+        #     # This changes unif[16].xy with time
+        #     self.__slide.unif[48] = self.__slide.unif[48] * 0.95 + self.__xstep * t_factor * 0.05
+        #     self.__slide.unif[49] = self.__slide.unif[49] * 0.95 + self.__ystep * t_factor * 0.05
+        #     self.__logger.info("KB Step %f", t_factor)
+
+        for mutator in self.__mutators:
+            mutator.mutate(self.__slide)
 
         if self.__alpha < 1.0:  # transition is happening
             self.__alpha += self.__delta_alpha
@@ -370,7 +384,11 @@ class ViewerDisplay:
         self.__timer.start()
         self.__logger.info("Switching to new image")
         tm = time.time()
+
+        # time of the next transition
         self.__next_tm = tm + time_delay
+
+
         self.__name_tm = tm + fade_time + self.__show_text_tm  # text starts after slide transition
         self.move_fg_to_bg(new_sfg)
 
@@ -432,13 +450,16 @@ class ViewerDisplay:
 
         self.__timer.checkpoint("to KenBurns")
 
-        if self.__kenburns:
-            ken_burns_time = time_delay - fade_time
-            # DBNote: convert the front-texture position into a rate
-            self.__xstep, self.__ystep = (self.__slide.unif[i] * 2.0 / ken_burns_time for i in (48, 49))
-            # DBNote: then set front-texture position to zero unif[16].xy = 0 ?
-            self.__slide.unif[48] = 0.0
-            self.__slide.unif[49] = 0.0
+        # if self.__kenburns:
+        #     ken_burns_time = time_delay - fade_time
+        #     # DBNote: convert the front-texture position into a rate
+        #     self.__xstep, self.__ystep = (self.__slide.unif[i] * 2.0 / ken_burns_time for i in (48, 49))
+        #     # DBNote: then set front-texture position to zero unif[16].xy = 0 ?
+        #     self.__slide.unif[48] = 0.0
+        #     self.__slide.unif[49] = 0.0
+
+        for randomizer in self.__randomizers:
+            randomizer.randomize()
 
         self.__timer.checkpoint("KenBurns")
         self.__logger.info("Switch image %s", self.__timer)

@@ -1,4 +1,6 @@
-## PictureFrame powered by pi3d
+## This is not the PicFrame you are looking for
+
+Click the logo to go to the real picframe page
 
 ![picframe logo](https://github.com/helgeerbe/picframe/wiki/images/Picframe_Logo.png)
 
